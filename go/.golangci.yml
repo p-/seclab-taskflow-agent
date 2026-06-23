@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: GitHub, Inc.
+# SPDX-License-Identifier: MIT
+
+run:
+  timeout: 5m
+  build-tags:
+    - e2e
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - revive
+
+issues:
+  exclude-rules:
+    # Tests may ignore errors and use dot-style assertions freely.
+    - path: _test\.go
+      linters:
+        - errcheck
