@@ -38,17 +38,19 @@ func Drive(
 	agent sdk.Agent,
 	prompt string,
 	maxTurns int,
-	onToolStart func(name string),
+	onToolStart func(name string, asyncTask bool, taskID string),
 	onTool ToolHook,
+	asyncTask bool,
+	taskID string,
 ) error {
 	maxRetry := MaxAPIRetry
 	rateBackoff := InitialRateBackoff
 	var lastRate error
 
 	for {
-		err := runOnce(ctx, backend, agent, prompt, maxTurns, onToolStart, onTool)
+		err := runOnce(ctx, backend, agent, prompt, maxTurns, onToolStart, onTool, asyncTask, taskID)
 		if err == nil {
-			render.Output("\n\n")
+			render.OutputMaybeBuffered("\n\n", asyncTask, taskID)
 			return nil
 		}
 
@@ -93,8 +95,10 @@ func runOnce(
 	agent sdk.Agent,
 	prompt string,
 	maxTurns int,
-	onToolStart func(name string),
+	onToolStart func(name string, asyncTask bool, taskID string),
 	onTool ToolHook,
+	asyncTask bool,
+	taskID string,
 ) error {
 	st, err := backend.RunStreamed(ctx, agent, prompt, maxTurns)
 	if err != nil {
@@ -112,10 +116,10 @@ func runOnce(
 		}
 		switch e := ev.(type) {
 		case sdk.TextDelta:
-			render.Output(e.Text)
+			render.OutputMaybeBuffered(e.Text, asyncTask, taskID)
 		case sdk.ToolEnd:
 			if onToolStart != nil {
-				onToolStart(e.ToolName)
+				onToolStart(e.ToolName, asyncTask, taskID)
 			}
 			if onTool != nil {
 				onTool(e.ToolName, e.Text)

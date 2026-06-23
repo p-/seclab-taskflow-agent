@@ -120,7 +120,7 @@ No runner changes are required.
 | OpenAI backend (Responses API streaming + tools) | ✅ |
 | Provider registry (Copilot / GitHub Models / OpenAI / custom) | ✅ |
 | Multi-personality handoffs | ❌ rejected at validation |
-| `async:` / `async_limit` parallel fan-out | ❌ fails with a clear error |
+| `async:` / `async_limit` parallel fan-out | ✅ |
 | MCP over SSE | ❌ fails with a clear error |
 | `exclude_from_context` | ❌ rejected at validation |
 | `api_type: messages` | ❌ rejected at validation |

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/envutil"
 	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/grammar"
@@ -38,12 +39,15 @@ type Options struct {
 // RunMain is the top-level entry point for personality/taskflow execution.
 func RunMain(ctx context.Context, at *loader.AvailableTools, opts Options) error {
 	lastResults := []string{}
+	var lastResultsMu sync.Mutex
 
-	onToolStart := func(name string) {
-		render.Outputf("\n** \U0001F916\U0001F6E0\uFE0F Tool Call: %s\n", name)
+	onToolStart := func(name string, asyncTask bool, taskID string) {
+		render.OutputMaybeBufferedf(asyncTask, taskID, "\n** \U0001F916\U0001F6E0\uFE0F Tool Call: %s\n", name)
 	}
 	onTool := func(_ string, result string) {
 		payload, _ := json.Marshal(map[string]string{"text": result})
+		lastResultsMu.Lock()
+		defer lastResultsMu.Unlock()
 		lastResults = append(lastResults, string(payload))
 	}
 
@@ -56,7 +60,7 @@ func RunMain(ctx context.Context, at *loader.AvailableTools, opts Options) error
 		if err != nil {
 			return err
 		}
-		_, err = deployTaskAgents(ctx, at, deployParams{
+		_, err = deployTaskAgentsFunc(ctx, at, deployParams{
 			agents:      map[string]*grammar.PersonalityDocument{opts.Personality: personality},
 			agentOrder:  []string{opts.Personality},
 			prompt:      opts.Prompt,
@@ -81,7 +85,7 @@ func runTaskflow(
 	opts Options,
 	lastResults *[]string,
 	onTool func(string, string),
-	onToolStart func(string),
+	onToolStart func(string, bool, string),
 ) error {
 	taskflowPath := opts.Taskflow
 	cliGlobals := opts.Globals
@@ -178,7 +182,7 @@ func runTask(
 	sess *session.Session,
 	lastResults *[]string,
 	onTool func(string, string),
-	onToolStart func(string),
+	onToolStart func(string, bool, string),
 ) error {
 	if task.Uses != "" {
 		merged, err := mergeReusableTask(at, task)
@@ -186,10 +190,6 @@ func runTask(
 			return err
 		}
 		task = merged
-	}
-
-	if task.AsyncTask {
-		return fmt.Errorf("task %q uses async, which is not supported in the Go agent yet", taskName(task, idx))
 	}
 
 	model, err := resolveTaskModel(task, mc)
@@ -235,26 +235,87 @@ func runTask(
 			return true, nil
 		}
 
-		complete := true
+		type deployment struct {
+			prompt string
+			agents map[string]*grammar.PersonalityDocument
+			order  []string
+		}
+
+		deployments := make([]deployment, 0, len(prompts))
 		for _, p := range prompts {
 			agents, order, err := resolveAgents(at, task, p)
 			if err != nil {
 				return false, err
 			}
-			ok, derr := deployTaskAgents(ctx, at, deployParams{
-				agents:      agents,
-				agentOrder:  order,
-				prompt:      p,
-				toolboxes:   task.Toolboxes,
-				blockedTool: task.BlockedTools,
-				headless:    task.Headless,
-				maxTurns:    maxTurns,
-				model:       model,
-				onTool:      onTool,
-				onToolStart: onToolStart,
-			})
-			if derr != nil {
-				return false, derr
+			deployments = append(deployments, deployment{prompt: p, agents: agents, order: order})
+		}
+
+		if !task.AsyncTask || !task.RepeatPrompt {
+			complete := true
+			for _, d := range deployments {
+				ok, derr := deployTaskAgentsFunc(ctx, at, deployParams{
+					agents:      d.agents,
+					agentOrder:  d.order,
+					prompt:      d.prompt,
+					toolboxes:   task.Toolboxes,
+					blockedTool: task.BlockedTools,
+					headless:    task.Headless,
+					maxTurns:    maxTurns,
+					model:       model,
+					onTool:      onTool,
+					onToolStart: onToolStart,
+				})
+				if derr != nil {
+					return false, derr
+				}
+				complete = complete && ok
+			}
+			return complete, nil
+		}
+
+		if task.AsyncLimit <= 0 {
+			return false, fmt.Errorf("task %q has invalid async_limit %d", taskName(task, idx), task.AsyncLimit)
+		}
+
+		sem := make(chan struct{}, task.AsyncLimit)
+		results := make([]bool, len(deployments))
+		errs := make([]error, len(deployments))
+		var wg sync.WaitGroup
+		for i, d := range deployments {
+			wg.Add(1)
+			go func(i int, d deployment) {
+				defer wg.Done()
+				select {
+				case sem <- struct{}{}:
+					defer func() { <-sem }()
+				case <-ctx.Done():
+					errs[i] = ctx.Err()
+					return
+				}
+
+				ok, derr := deployTaskAgentsFunc(ctx, at, deployParams{
+					agents:      d.agents,
+					agentOrder:  d.order,
+					prompt:      d.prompt,
+					toolboxes:   task.Toolboxes,
+					blockedTool: task.BlockedTools,
+					headless:    task.Headless,
+					maxTurns:    maxTurns,
+					model:       model,
+					onTool:      onTool,
+					onToolStart: onToolStart,
+					asyncTask:   true,
+				})
+				results[i] = ok
+				errs[i] = derr
+			}(i, d)
+		}
+		wg.Wait()
+
+		complete := true
+		for i, ok := range results {
+			if errs[i] != nil {
+				return false, errs[i]
 			}
 			complete = complete && ok
 		}

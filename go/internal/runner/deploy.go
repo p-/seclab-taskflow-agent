@@ -5,6 +5,10 @@ package runner
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"strconv"
+	"time"
 
 	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/grammar"
 	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/loader"
@@ -36,17 +40,25 @@ type deployParams struct {
 	maxTurns    int
 	model       resolvedTaskModel
 	onTool      stream.ToolHook
-	onToolStart func(name string)
+	onToolStart func(name string, asyncTask bool, taskID string)
+	asyncTask   bool
 }
+
+var deployTaskAgentsFunc = deployTaskAgents
 
 // deployTaskAgents connects MCP servers, builds the backend agent, and runs
 // the prompt to completion. It ports the Python “deploy_task_agents“ for the
 // single-agent MVP (handoffs are rejected by the backend's Validate).
 func deployTaskAgents(ctx context.Context, at *loader.AvailableTools, dp deployParams) (bool, error) {
-	render.Outputf("** \U0001F916\U0001F4AA Deploying Task Flow Agent(s): %v\n", dp.agentOrder)
-	render.Outputf("** \U0001F916\U0001F4AA Model   : %s\n", dp.model.model)
+	taskID := newDeployTaskID()
+	if dp.asyncTask {
+		defer render.FlushAsyncOutput(taskID)
+	}
+	render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\U0001F4AA Deploying Task Flow Agent(s): %v\n", dp.agentOrder)
+	render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\U0001F4AA Task ID : %s\n", taskID)
+	render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\U0001F4AA Model   : %s\n", dp.model.model)
 	if dp.model.endpoint != "" {
-		render.Outputf("** \U0001F916\U0001F4AA Endpoint: %s\n", dp.model.endpoint)
+		render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\U0001F4AA Endpoint: %s\n", dp.model.endpoint)
 	}
 
 	// Resolve toolboxes: explicit override or union from personalities.
@@ -108,9 +120,17 @@ func deployTaskAgents(ctx context.Context, at *loader.AvailableTools, dp deployP
 	}
 	defer agent.Close(ctx)
 
-	if err := stream.Drive(ctx, backend, agent, dp.prompt, dp.maxTurns, dp.onToolStart, dp.onTool); err != nil {
-		render.Outputf("** \U0001F916\u2757 %s\n", err.Error())
+	if err := stream.Drive(ctx, backend, agent, dp.prompt, dp.maxTurns, dp.onToolStart, dp.onTool, dp.asyncTask, taskID); err != nil {
+		render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\u2757 %s\n", err.Error())
 		return false, err
 	}
 	return true, nil
+}
+
+func newDeployTaskID() string {
+	b := make([]byte, 6)
+	if _, err := rand.Read(b); err == nil {
+		return hex.EncodeToString(b)
+	}
+	return strconv.FormatInt(time.Now().UnixNano(), 16)
 }
