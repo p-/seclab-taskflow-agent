@@ -148,7 +148,12 @@ func (a *agent) runChat(ctx context.Context, prompt string, maxTurns int, s *str
 				s.errc <- mapError(ctx.Err())
 				return
 			}
-			messages = append(messages, oai.ToolMessage(result, tc.ID))
+			if !a.exclude {
+				messages = append(messages, oai.ToolMessage(result, tc.ID))
+			}
+		}
+		if a.exclude {
+			return
 		}
 	}
 

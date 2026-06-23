@@ -149,3 +149,26 @@ func TestRunTaskAsyncWithoutRepeatPromptRunsSequentially(t *testing.T) {
 	require.Len(t, sess.CompletedTasks, 1)
 	require.True(t, sess.CompletedTasks[0].Result)
 }
+
+func TestRunTaskPassesExcludeFromContextToDeploy(t *testing.T) {
+	at := setupRunnerAsyncFixture(t)
+	orig := deployTaskAgentsFunc
+	defer func() { deployTaskAgentsFunc = orig }()
+
+	var sawExclude bool
+	deployTaskAgentsFunc = func(_ context.Context, _ *loader.AvailableTools, dp deployParams) (bool, error) {
+		sawExclude = dp.excludeCtx
+		return true, nil
+	}
+
+	lastResults := []string{}
+	task := grammar.TaskDefinition{
+		Name:               "exclude-context",
+		Agents:             []string{"fixtures.personality"},
+		UserPrompt:         "hello",
+		ExcludeFromContext: true,
+	}
+	err := runTask(context.Background(), at, &grammar.TaskflowDocument{}, nil, 0, task, nil, "", newTestSession(), &lastResults, nil, nil)
+	require.NoError(t, err)
+	require.True(t, sawExclude)
+}

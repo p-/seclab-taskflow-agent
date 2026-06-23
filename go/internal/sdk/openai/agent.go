@@ -38,15 +38,12 @@ type Backend struct{}
 func (*Backend) Name() string { return "openai" }
 
 // Validate rejects spec features the openai backend cannot honour:
-// multi-personality handoffs, exclude_from_context, and API types other than
-// chat_completions or responses. Surfacing these at validation time matches
-// the Python BackendCapabilityError behaviour.
+// multi-personality handoffs and API types other than chat_completions or
+// responses. Surfacing these at validation time matches the Python
+// BackendCapabilityError behaviour.
 func (*Backend) Validate(spec *sdk.AgentSpec) error {
 	if len(spec.Handoffs) > 0 {
 		return &sdk.CapabilityError{Msg: "openai backend (Go) does not support multi-personality handoffs yet"}
-	}
-	if spec.ExcludeFromContext {
-		return &sdk.CapabilityError{Msg: "openai backend (Go) does not support exclude_from_context yet"}
 	}
 	switch spec.APIType {
 	case "", grammar.APITypeChatCompletions, grammar.APITypeResponses:
@@ -68,6 +65,7 @@ type agent struct {
 	servers   []*mcp.Server
 	temp      *float64
 	maxTurns  int
+	exclude   bool
 }
 
 // Close releases the agent. The openai-go client uses the default HTTP pool,
@@ -103,6 +101,7 @@ func (b *Backend) Build(ctx context.Context, spec *sdk.AgentSpec) (sdk.Agent, er
 		system:  spec.Instructions,
 		apiType: spec.APIType,
 		servers: nil,
+		exclude: spec.ExcludeFromContext,
 	}
 	if t := temperatureFromSettings(spec.ModelSettings); t != nil {
 		a.temp = t

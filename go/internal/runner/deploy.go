@@ -37,6 +37,7 @@ type deployParams struct {
 	toolboxes   []string
 	blockedTool []string
 	headless    bool
+	excludeCtx  bool
 	maxTurns    int
 	model       resolvedTaskModel
 	onTool      stream.ToolHook
@@ -93,16 +94,17 @@ func deployTaskAgents(ctx context.Context, at *loader.AvailableTools, dp deployP
 	primaryName := dp.agentOrder[0]
 	primary := dp.agents[primaryName]
 	spec := &sdk.AgentSpec{
-		Name:          primaryName,
-		Instructions:  prompt.BuildSystemPrompt(primary.Personality, primary.Task, importantGuidelines, serverPrompts),
-		Model:         dp.model.model,
-		ModelSettings: dp.model.settings,
-		MCPServers:    pool.Specs(),
-		APIType:       dp.model.apiType,
-		Endpoint:      dp.model.endpoint,
-		TokenEnv:      dp.model.token,
-		BlockedTools:  dp.blockedTool,
-		Headless:      dp.headless,
+		Name:               primaryName,
+		Instructions:       prompt.BuildSystemPrompt(primary.Personality, primary.Task, importantGuidelines, serverPrompts),
+		Model:              dp.model.model,
+		ModelSettings:      dp.model.settings,
+		MCPServers:         pool.Specs(),
+		ExcludeFromContext: dp.excludeCtx,
+		APIType:            dp.model.apiType,
+		Endpoint:           dp.model.endpoint,
+		TokenEnv:           dp.model.token,
+		BlockedTools:       dp.blockedTool,
+		Headless:           dp.headless,
 	}
 
 	backendName := sdk.ResolveName(dp.model.backend)

@@ -122,9 +122,9 @@ No runner changes are required.
 | Multi-personality handoffs | ❌ rejected at validation |
 | `async:` / `async_limit` parallel fan-out | ✅ |
 | MCP over SSE | ❌ fails with a clear error |
-| `exclude_from_context` | ❌ rejected at validation |
+| `exclude_from_context` | ✅ |
 | `api_type: messages` | ❌ rejected at validation |
-| Model listing (`-l`), watchdog, async output buffering | ❌ not ported |
+| Model listing (`-l`), watchdog | ❌ not ported |
 | `copilot_sdk` / `anthropic_sdk` backends | ❌ not ported |
 
 Unsupported features fail fast with an explicit message rather than silently

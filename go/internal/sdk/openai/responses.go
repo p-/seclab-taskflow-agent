@@ -72,8 +72,10 @@ func (a *agent) runResponses(ctx context.Context, prompt string, maxTurns int, s
 		}
 
 		for _, c := range calls {
-			// Echo the model's function call into the next turn's input.
-			inputs = append(inputs, responses.ResponseInputItemParamOfFunctionCall(c.arguments, c.callID, c.name))
+			if !a.exclude {
+				// Echo the model's function call into the next turn's input.
+				inputs = append(inputs, responses.ResponseInputItemParamOfFunctionCall(c.arguments, c.callID, c.name))
+			}
 
 			result, err := a.dispatchTool(ctx, c.name, c.arguments)
 			if err != nil {
@@ -85,7 +87,12 @@ func (a *agent) runResponses(ctx context.Context, prompt string, maxTurns int, s
 				s.errc <- mapError(ctx.Err())
 				return
 			}
-			inputs = append(inputs, responses.ResponseInputItemParamOfFunctionCallOutput(c.callID, result))
+			if !a.exclude {
+				inputs = append(inputs, responses.ResponseInputItemParamOfFunctionCallOutput(c.callID, result))
+			}
+		}
+		if a.exclude {
+			return
 		}
 	}
 
