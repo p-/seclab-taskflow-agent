@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -47,6 +48,16 @@ type deployParams struct {
 
 var deployTaskAgentsFunc = deployTaskAgents
 
+// formatModelLine renders the model identifier together with any additional
+// model settings, mirroring the Python runner which appends ", params: <dict>"
+// to the deployed model line when model_settings are present.
+func formatModelLine(model string, settings map[string]any) string {
+	if len(settings) == 0 {
+		return model
+	}
+	return fmt.Sprintf("%s, params: %v", model, settings)
+}
+
 // deployTaskAgents connects MCP servers, builds the backend agent, and runs
 // the prompt to completion. It ports the Python “deploy_task_agents“ for the
 // single-agent MVP (handoffs are rejected by the backend's Validate).
@@ -57,7 +68,7 @@ func deployTaskAgents(ctx context.Context, at *loader.AvailableTools, dp deployP
 	}
 	render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\U0001F4AA Deploying Task Flow Agent(s): %v\n", dp.agentOrder)
 	render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\U0001F4AA Task ID : %s\n", taskID)
-	render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\U0001F4AA Model   : %s\n", dp.model.model)
+	render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\U0001F4AA Model   : %s\n", formatModelLine(dp.model.model, dp.model.settings))
 	if dp.model.endpoint != "" {
 		render.OutputMaybeBufferedf(dp.asyncTask, taskID, "** \U0001F916\U0001F4AA Endpoint: %s\n", dp.model.endpoint)
 	}
