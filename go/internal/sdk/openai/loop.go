@@ -101,11 +101,8 @@ func (a *agent) runChat(ctx context.Context, prompt string, maxTurns int, s *str
 		if len(a.tools) > 0 {
 			params.Tools = a.tools
 		}
-		if a.temp != nil {
-			params.Temperature = oai.Float(*a.temp)
-		}
 
-		chatStream := a.client.Chat.Completions.NewStreaming(ctx, params)
+		chatStream := a.client.Chat.Completions.NewStreaming(ctx, params, a.settingsOpts...)
 		acc := oai.ChatCompletionAccumulator{}
 		for chatStream.Next() {
 			chunk := chatStream.Current()

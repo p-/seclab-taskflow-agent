@@ -34,11 +34,8 @@ func (a *agent) runResponses(ctx context.Context, prompt string, maxTurns int, s
 		if len(a.respTools) > 0 {
 			params.Tools = a.respTools
 		}
-		if a.temp != nil {
-			params.Temperature = oai.Float(*a.temp)
-		}
 
-		respStream := a.client.Responses.NewStreaming(ctx, params)
+		respStream := a.client.Responses.NewStreaming(ctx, params, a.settingsOpts...)
 		var completed *responses.Response
 		for respStream.Next() {
 			ev := respStream.Current()

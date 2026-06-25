@@ -62,10 +62,10 @@ type agent struct {
 	apiType   string
 	tools     []oai.ChatCompletionToolParam
 	respTools []responses.ToolUnionParam
-	servers   []*mcp.Server
-	temp      *float64
-	maxTurns  int
-	exclude   bool
+	servers      []*mcp.Server
+	settingsOpts []option.RequestOption
+	maxTurns     int
+	exclude      bool
 }
 
 // Close releases the agent. The openai-go client uses the default HTTP pool,
@@ -96,15 +96,13 @@ func (b *Backend) Build(ctx context.Context, spec *sdk.AgentSpec) (sdk.Agent, er
 	client := oai.NewClient(opts...)
 
 	a := &agent{
-		client:  client,
-		model:   spec.Model,
-		system:  spec.Instructions,
-		apiType: spec.APIType,
-		servers: nil,
-		exclude: spec.ExcludeFromContext,
-	}
-	if t := temperatureFromSettings(spec.ModelSettings); t != nil {
-		a.temp = t
+		client:       client,
+		model:        spec.Model,
+		system:       spec.Instructions,
+		apiType:      spec.APIType,
+		servers:      nil,
+		exclude:      spec.ExcludeFromContext,
+		settingsOpts: forwardSettingsOptions(spec.ModelSettings),
 	}
 
 	blocked := toSet(spec.BlockedTools)
@@ -168,20 +166,21 @@ func toResponsesToolParam(t mcp.Tool) responses.ToolUnionParam {
 	return tool
 }
 
-func temperatureFromSettings(settings map[string]any) *float64 {
-	if settings == nil {
+// forwardSettingsOptions turns the resolved model_settings into per-request
+// JSON body overrides. This mirrors the Python implementation, which forwards
+// the user-provided model_settings to the provider verbatim rather than
+// cherry-picking individual keys. Engine-only keys (api_type, endpoint, token,
+// backend) are already stripped during model resolution, so every remaining
+// key is a provider parameter (e.g. temperature, top_p, reasoning, max_tokens).
+func forwardSettingsOptions(settings map[string]any) []option.RequestOption {
+	if len(settings) == 0 {
 		return nil
 	}
-	if v, ok := settings["temperature"]; ok {
-		switch n := v.(type) {
-		case float64:
-			return &n
-		case int:
-			f := float64(n)
-			return &f
-		}
+	opts := make([]option.RequestOption, 0, len(settings))
+	for k, v := range settings {
+		opts = append(opts, option.WithJSONSet(k, v))
 	}
-	return nil
+	return opts
 }
 
 func toSet(list []string) map[string]bool {
