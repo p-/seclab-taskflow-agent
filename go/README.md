@@ -80,16 +80,42 @@ A `.env` file in the working directory is loaded automatically.
 
 ## Backends
 
-The runner drives backends behind the `sdk.Backend` interface. Only
-`openai` ships today — it supports both the **Chat Completions** and
-**Responses** APIs (streaming, with MCP tool calling), selected per task/model
-via the `api_type` field. Selection precedence:
+The runner drives backends behind the `sdk.Backend` interface. Two backends
+ship today:
+
+- **`openai`** (default) — supports both the **Chat Completions** and
+  **Responses** APIs (streaming, with MCP tool calling), selected per
+  task/model via the `api_type` field.
+- **`anthropic_sdk`** — drives the native Anthropic **Messages** API
+  (`/v1/messages`) via the [`anthropic-sdk-go`](https://github.com/anthropics/anthropic-sdk-go)
+  SDK. Supports streaming, MCP tool calling, adaptive extended thinking with a
+  configurable `reasoning.effort` (`low`, `medium`, `high`, `max`),
+  `temperature`/`top_p`, automatic ephemeral prompt caching (opt out with
+  `prompt_caching: false`), and `exclude_from_context`. Handoffs are not
+  supported. Designed for CAPI's Anthropic endpoint; providers in the registry
+  authenticate with `Authorization: Bearer` (not `x-api-key`).
+
+Select a backend with the `backend:` field. Selection precedence:
 
 1. Per-task `backend:` in the task's `model_settings`.
 2. Per-model `backend:` in the model config's `model_settings`.
 3. Top-level `backend:` in the model config.
 4. `SECLAB_TASKFLOW_BACKEND`.
 5. `openai`.
+
+```yaml
+seclab-taskflow-agent:
+  version: "1.0"
+  filetype: model_config
+models:
+  code_analysis: claude-opus-4.7
+model_settings:
+  code_analysis:
+    api_type: messages
+    backend: anthropic_sdk
+    reasoning:
+      effort: high
+```
 
 ### Adding a backend
 
@@ -118,14 +144,15 @@ No runner changes are required.
 | Session checkpoint / `--resume`, task retry/backoff | ✅ |
 | OpenAI backend (Chat Completions streaming + tools) | ✅ |
 | OpenAI backend (Responses API streaming + tools) | ✅ |
+| Anthropic backend (Messages API streaming + tools, `api_type: messages`) | ✅ |
 | Provider registry (Copilot / GitHub Models / OpenAI / custom) | ✅ |
 | Multi-personality handoffs | ❌ rejected at validation |
 | `async:` / `async_limit` parallel fan-out | ✅ |
 | MCP over SSE | ❌ fails with a clear error |
 | `exclude_from_context` | ✅ |
-| `api_type: messages` | ❌ rejected at validation |
+| `api_type: messages` (Anthropic Messages API) | ✅ |
 | Model listing (`-l`), watchdog | ❌ not ported |
-| `copilot_sdk` / `anthropic_sdk` backends | ❌ not ported |
+| `copilot_sdk` backend | ❌ not ported |
 
 Unsupported features fail fast with an explicit message rather than silently
 misbehaving.
@@ -150,6 +177,7 @@ internal/envutil/            TmpEnv + denylist (env_utils.py, mcp_transport.py)
 internal/capi/               provider/token/endpoint registry (capi.py)
 internal/sdk/                backend interface, errors, registry (sdk/base.py)
 internal/sdk/openai/         OpenAI backend + agent loop
+internal/sdk/anthropic/      Anthropic Messages backend + agent loop
 internal/mcp/                MCP params, namespacing, lifecycle (mcp_*.py)
 internal/prompt/             system-prompt builder (mcp_prompt.py)
 internal/shell/              shell run-task executor (shell_utils.py)

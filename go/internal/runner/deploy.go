@@ -19,7 +19,8 @@ import (
 	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/sdk"
 	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/stream"
 
-	_ "github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/sdk/openai" // register the openai backend
+	_ "github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/sdk/anthropic" // register the anthropic_sdk backend
+	_ "github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/sdk/openai"    // register the openai backend
 )
 
 // importantGuidelines are appended to every system prompt, matching Python.

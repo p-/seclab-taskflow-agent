@@ -26,6 +26,11 @@ type Provider struct {
 	BaseURL      string
 	DefaultModel string
 	ExtraHeaders map[string]string
+	// BearerAuth reports whether the provider authenticates with an
+	// Authorization: Bearer header (true) rather than a provider-native
+	// scheme such as the Anthropic SDK's x-api-key (false). Known providers
+	// use Bearer auth; the generic custom fallback uses native SDK auth.
+	BearerAuth bool
 }
 
 const defaultProviderHost = "api.githubcopilot.com"
@@ -47,16 +52,19 @@ func providers() map[string]Provider {
 			BaseURL:      "https://api.githubcopilot.com",
 			DefaultModel: "gpt-4.1",
 			ExtraHeaders: map[string]string{"Copilot-Integration-Id": copilotIntegrationID()},
+			BearerAuth:   true,
 		},
 		"models.github.ai": {
 			Name:         "github-models",
 			BaseURL:      "https://models.github.ai/inference",
 			DefaultModel: "openai/gpt-4.1",
+			BearerAuth:   true,
 		},
 		"api.openai.com": {
 			Name:         "openai",
 			BaseURL:      "https://api.openai.com/v1",
 			DefaultModel: "gpt-4.1",
+			BearerAuth:   true,
 		},
 	}
 }
