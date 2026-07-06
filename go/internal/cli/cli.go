@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/banner"
+	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/capi"
 	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/loader"
 	"github.com/GitHubSecurityLab/seclab-taskflow-agent/go/internal/runner"
 )
@@ -22,6 +23,7 @@ import (
 type flags struct {
 	personality string
 	taskflow    string
+	listModels  bool
 	globals     []string
 	modelConfig string
 	resume      string
@@ -44,6 +46,7 @@ func Execute() int {
 
 	root.Flags().StringVarP(&f.personality, "personality", "p", "", "Personality module path (mutually exclusive with -t).")
 	root.Flags().StringVarP(&f.taskflow, "taskflow", "t", "", "Taskflow module path (mutually exclusive with -p).")
+	root.Flags().BoolVarP(&f.listModels, "list-models", "l", false, "List available tool-call models and exit.")
 	root.Flags().StringArrayVarP(&f.globals, "global", "g", nil, "Global variable as KEY=VALUE. Repeatable.")
 	root.Flags().StringVarP(&f.modelConfig, "model-config", "m", "", "Model configuration module path.")
 	root.Flags().StringVar(&f.resume, "resume", "", "Resume a previous session by its ID.")
@@ -60,12 +63,30 @@ func runRoot(ctx context.Context, f *flags, args []string) error {
 	debug := f.debug || isTruthy(os.Getenv("TASK_AGENT_DEBUG"))
 	f.debug = debug
 
-	if f.resume != "" && (f.personality != "" || f.taskflow != "") {
-		return fmt.Errorf("--resume cannot be combined with -p or -t")
+	if f.resume != "" && (f.personality != "" || f.taskflow != "" || f.listModels) {
+		return fmt.Errorf("--resume cannot be combined with -p, -t, or -l")
 	}
-	if f.personality != "" && f.taskflow != "" {
-		return fmt.Errorf("-p and -t are mutually exclusive")
+	specified := 0
+	for _, set := range []bool{f.personality != "", f.taskflow != "", f.listModels} {
+		if set {
+			specified++
+		}
 	}
+	if specified > 1 {
+		return fmt.Errorf("-p, -t, and -l are mutually exclusive")
+	}
+
+	if f.listModels {
+		token, err := capi.Token()
+		if err != nil {
+			return err
+		}
+		for _, model := range capi.ListToolCallModels(token, "") {
+			fmt.Println(model)
+		}
+		return nil
+	}
+
 	if f.personality == "" && f.taskflow == "" && f.resume == "" {
 		return fmt.Errorf("one of -p, -t, or --resume is required")
 	}

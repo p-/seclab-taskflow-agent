@@ -40,6 +40,7 @@ SECLAB_TASKFLOW_PATH=$PWD/.. ./bin/seclab-taskflow-agent \
 |------|---------|
 | `-p, --personality` | Personality module path (mutually exclusive with `-t`). |
 | `-t, --taskflow` | Taskflow module path (mutually exclusive with `-p`). |
+| `-l, --list-models` | List available tool-call models and exit. |
 | `-g, --global KEY=VALUE` | Global template variable. Repeatable. |
 | `-m, --model-config` | Model configuration module path. |
 | `--resume <id>` | Resume a previous session. |
@@ -151,7 +152,8 @@ No runner changes are required.
 | MCP over SSE | ❌ fails with a clear error |
 | `exclude_from_context` | ✅ |
 | `api_type: messages` (Anthropic Messages API) | ✅ |
-| Model listing (`-l`), watchdog | ❌ not ported |
+| Model listing (`-l`) | ✅ |
+| Watchdog | ❌ not ported |
 | `copilot_sdk` backend | ❌ not ported |
 
 Unsupported features fail fast with an explicit message rather than silently

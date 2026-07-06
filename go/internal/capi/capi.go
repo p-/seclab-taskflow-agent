@@ -25,7 +25,10 @@ type Provider struct {
 	Name         string
 	BaseURL      string
 	DefaultModel string
-	ExtraHeaders map[string]string
+	// ModelsCatalog is the (absolute) path of the provider's model catalog
+	// endpoint, joined against the authority of BaseURL.
+	ModelsCatalog string
+	ExtraHeaders  map[string]string
 	// BearerAuth reports whether the provider authenticates with an
 	// Authorization: Bearer header (true) rather than a provider-native
 	// scheme such as the Anthropic SDK's x-api-key (false). Known providers
@@ -48,23 +51,26 @@ func copilotIntegrationID() string {
 func providers() map[string]Provider {
 	return map[string]Provider{
 		"api.githubcopilot.com": {
-			Name:         "copilot",
-			BaseURL:      "https://api.githubcopilot.com",
-			DefaultModel: "gpt-4.1",
-			ExtraHeaders: map[string]string{"Copilot-Integration-Id": copilotIntegrationID()},
-			BearerAuth:   true,
+			Name:          "copilot",
+			BaseURL:       "https://api.githubcopilot.com",
+			DefaultModel:  "gpt-4.1",
+			ModelsCatalog: "/models",
+			ExtraHeaders:  map[string]string{"Copilot-Integration-Id": copilotIntegrationID()},
+			BearerAuth:    true,
 		},
 		"models.github.ai": {
-			Name:         "github-models",
-			BaseURL:      "https://models.github.ai/inference",
-			DefaultModel: "openai/gpt-4.1",
-			BearerAuth:   true,
+			Name:          "github-models",
+			BaseURL:       "https://models.github.ai/inference",
+			DefaultModel:  "openai/gpt-4.1",
+			ModelsCatalog: "/catalog/models",
+			BearerAuth:    true,
 		},
 		"api.openai.com": {
-			Name:         "openai",
-			BaseURL:      "https://api.openai.com/v1",
-			DefaultModel: "gpt-4.1",
-			BearerAuth:   true,
+			Name:          "openai",
+			BaseURL:       "https://api.openai.com/v1",
+			DefaultModel:  "gpt-4.1",
+			ModelsCatalog: "/v1/models",
+			BearerAuth:    true,
 		},
 	}
 }
@@ -121,5 +127,5 @@ func GetProvider(endpoint string) Provider {
 			return p
 		}
 	}
-	return Provider{Name: "custom", BaseURL: endpoint, DefaultModel: "please-set-default-model-via-env"}
+	return Provider{Name: "custom", BaseURL: endpoint, ModelsCatalog: "/models", DefaultModel: "please-set-default-model-via-env"}
 }
